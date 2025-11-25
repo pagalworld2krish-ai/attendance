@@ -5,7 +5,7 @@ from datetime import datetime, date
 import glob
 
 # --- CONFIGURATION ---
-DATA_FOLDER = "data"  # Folder where your CSV files are
+DATA_FOLDER = "."  # Folder where your CSV files are
 ATTENDANCE_FILE = "attendance_log.csv" 
 ADMIN_PASSWORD = "admin" # You can change this password
 
@@ -169,3 +169,4 @@ elif menu == "Admin":
                 st.info("Attendance marked, but zero students are absent today.")
     elif password:
         st.error("Wrong Password")
+
