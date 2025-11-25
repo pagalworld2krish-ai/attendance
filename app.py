@@ -3,7 +3,11 @@ import pandas as pd
 import os
 from datetime import datetime, date
 import glob
-
+import os
+# --- DEBUGGING CODE (Add this temporarily) ---
+st.write("📂 Current Folder:", os.getcwd())
+st.write("📄 Files found here:", os.listdir("."))
+# ---------------------------------------------
 # --- CONFIGURATION ---
 DATA_FOLDER = "."  # Folder where your CSV files are
 ATTENDANCE_FILE = "attendance_log.csv" 
@@ -169,4 +173,5 @@ elif menu == "Admin":
                 st.info("Attendance marked, but zero students are absent today.")
     elif password:
         st.error("Wrong Password")
+
 
