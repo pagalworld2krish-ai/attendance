@@ -2,71 +2,60 @@ import streamlit as st
 import pandas as pd
 import os
 import glob
-from datetime import datetime, date
+from datetime import date
 
 # --- CONFIGURATION ---
+# We use "Data" with a capital D because that is your folder name
+DATA_FOLDER = "Data"
 ATTENDANCE_FILE = "attendance_log.csv" 
-ADMIN_PASSWORD = "admin" 
+ADMIN_PASSWORD = "admin"
 
 st.set_page_config(page_title="School Attendance", layout="wide")
 
-# --- SMART DATA LOADER ---
 @st.cache_data
 def load_data():
-    """Smartly finds CSV files no matter where they are uploaded"""
-    
-    # 1. Get the folder where this app.py file is running
+    # 1. Get the current directory where app.py is
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 2. Search for CSV files in common places
-    # Option A: Are they right here? (Root)
-    files = glob.glob(os.path.join(current_dir, "*.csv"))
+    # 2. Build the path to the "Data" folder
+    target_folder = os.path.join(current_dir, DATA_FOLDER)
     
-    # Option B: Are they in a 'data' folder?
+    # 3. Find all CSV files inside "Data"
+    files = glob.glob(os.path.join(target_folder, "*.csv"))
+    
+    # --- DEBUG HELP ---
     if not files:
-        files = glob.glob(os.path.join(current_dir, "data", "*.csv"))
+        st.error(f"❌ No CSV files found in '{DATA_FOLDER}' folder.")
+        st.write(f"I am looking at this path: {target_folder}")
         
-    # Option C: Are they in a 'student_data' folder?
-    if not files:
-        files = glob.glob(os.path.join(current_dir, "student_data", "*.csv"))
-
-    # --- DEBUGGING ASSISTANT ---
-    # If we STILL find nothing, show the user exactly what is wrong
-    if not files:
-        st.error("⚠️ I cannot find your student CSV files.")
-        st.write("I looked in this folder:", current_dir)
-        st.write("I found these files instead:", os.listdir(current_dir))
-        st.info("👉 Please ensure your student files end with .csv (not .xlsx) and are uploaded to GitHub.")
+        if os.path.exists(target_folder):
+             st.write(f"The folder '{DATA_FOLDER}' exists, but it contains:", os.listdir(target_folder))
+        else:
+             st.write(f"⚠️ I cannot even find the folder '{DATA_FOLDER}'.")
+             st.write("Folders I DO see here:", os.listdir(current_dir))
         return pd.DataFrame()
+    # ------------------
 
-    # 3. Load the files we found
     df_list = []
     for filename in files:
-        # Skip the attendance log file itself so we don't read it as a class
-        if "attendance_log.csv" in filename:
-            continue
-            
         try:
-            # Load CSV
+            # Read CSV
             temp_df = pd.read_csv(filename, dtype=str)
-            # Clean column names
+            # Clean header names
             temp_df.columns = [c.strip() for c in temp_df.columns]
             df_list.append(temp_df)
         except Exception as e:
-            st.warning(f"Skipped {os.path.basename(filename)}: {e}")
-            
+            st.warning(f"⚠️ Could not read {os.path.basename(filename)}: {e}")
+
     if df_list:
         final_df = pd.concat(df_list, ignore_index=True)
-        # Fix column names to match your specific Excel format
-        # Trying multiple common variations just in case
+        # Rename columns to match your Excel format
         final_df = final_df.rename(columns={
             'Class & Section': 'Class', 
-            'Class': 'Class',
             'Mo.no': 'Phone',
             'Mobile': 'Phone'
         })
         return final_df
-    
     return pd.DataFrame()
 
 def save_absentees(class_name, absent_list):
@@ -76,7 +65,7 @@ def save_absentees(class_name, absent_list):
         records.append([today, class_name, "ALL PRESENT", ""])
     else:
         for student in absent_list:
-            records.append([today, class_name, student['Student Name'], student['Phone']])
+            records.append([today, class_name, student['Name'], student['Phone']])
             
     new_df = pd.DataFrame(records, columns=['Date', 'Class', 'Name', 'Phone'])
     
@@ -88,63 +77,47 @@ def save_absentees(class_name, absent_list):
         final_df = new_df
     final_df.to_csv(ATTENDANCE_FILE, index=False)
 
-# --- APP LAYOUT ---
+# --- MAIN APP ---
 st.title("🏫 Attendance System")
-
 df = load_data()
 
-# Only show the app if data is loaded
 if not df.empty:
-    # Ensure Class column exists
     if 'Class' not in df.columns:
-        st.error("❌ I found the CSV files, but I couldn't find a column named 'Class & Section'. Check your CSV headers.")
+        st.error("❌ Files loaded, but column 'Class & Section' is missing.")
         st.write("Columns found:", df.columns.tolist())
-        st.stop()
-
-    class_list = sorted(df['Class'].dropna().unique())
-
-    menu = st.sidebar.radio("Login As", ["Teacher", "Admin"])
-
-    if menu == "Teacher":
-        st.subheader("👩‍🏫 Mark Attendance")
-        selected_class = st.selectbox("Select your Class", class_list)
+    else:
+        menu = st.sidebar.radio("Menu", ["Teacher", "Admin"])
         
-        if selected_class:
-            st.write(f"Date: **{date.today().strftime('%d-%m-%Y')}**")
-            st.warning("Check the box ONLY if the student is **ABSENT**.")
+        if menu == "Teacher":
+            st.header("👩‍🏫 Teacher View")
+            classes = sorted(df['Class'].dropna().unique())
+            selected = st.selectbox("Select Class", classes)
             
-            class_data = df[df['Class'] == selected_class].sort_values('Student Name')
-            
-            with st.form("attendance_form"):
-                checkboxes = {}
-                for index, row in class_data.iterrows():
-                    c1, c2 = st.columns([3, 1])
-                    c1.write(f"**{row['Student Name']}**")
-                    unique_key = f"{row['Student Name']}_{row['Phone']}"
-                    checkboxes[index] = c2.checkbox("Absent", key=unique_key)
+            if selected:
+                st.write(f"Marking for: **{selected}**")
+                students = df[df['Class'] == selected].sort_values('Student Name')
                 
-                if st.form_submit_button("Submit Attendance"):
-                    absent_students = [class_data.loc[idx] for idx, checked in checkboxes.items() if checked]
-                    save_absentees(selected_class, absent_students)
-                    st.success("✅ Attendance Submitted Successfully!")
-
-    elif menu == "Admin":
-        st.subheader("👮‍♂️ Admin Dashboard")
-        if st.sidebar.text_input("Password", type="password") == ADMIN_PASSWORD:
-            if os.path.exists(ATTENDANCE_FILE):
-                log = pd.read_csv(ATTENDANCE_FILE)
-                today_log = log[log['Date'] == str(date.today())]
-                
-                st.metric("Classes Submitted", len(today_log['Class'].unique()))
-                
-                absentees = today_log[today_log['Name'] != "ALL PRESENT"]
-                if not absentees.empty:
-                    st.write("### 🔴 Today's Absentees")
-                    st.dataframe(absentees)
+                with st.form("att"):
+                    checks = {}
+                    for idx, row in students.iterrows():
+                        c1, c2 = st.columns([3,1])
+                        c1.write(row['Student Name'])
+                        checks[idx] = c2.checkbox("Absent", key=row['Phone'])
                     
-                    phone_text = "\n".join(absentees['Phone'].astype(str).str.replace(r'\.0$', '', regex=True))
-                    st.download_button("Download Phone Numbers (.txt)", phone_text, "absentees.txt")
-                else:
-                    st.info("No absentees marked today yet.")
-            else:
-                st.info("No records found.")
+                    if st.form_submit_button("Submit"):
+                        absent = [students.loc[i] for i, c in checks.items() if c]
+                        save_absentees(selected, absent)
+                        st.success("Done!")
+
+        elif menu == "Admin":
+            st.header("Admin")
+            if st.sidebar.text_input("Password", type="password") == ADMIN_PASSWORD:
+                if os.path.exists(ATTENDANCE_FILE):
+                    log = pd.read_csv(ATTENDANCE_FILE)
+                    today_recs = log[log['Date'] == str(date.today())]
+                    st.dataframe(today_recs)
+                    
+                    absent_only = today_recs[today_recs['Name'] != "ALL PRESENT"]
+                    if not absent_only.empty:
+                        nums = "\n".join(absent_only['Phone'].astype(str).tolist())
+                        st.download_button("Download Numbers", nums, "absentees.txt")
