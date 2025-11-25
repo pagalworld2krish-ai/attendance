@@ -126,3 +126,12 @@ if not df.empty:
                         st.download_button("Download Absentees", txt, "absent.txt")
                 else:
                     st.info("No records yet.")
+
+# --- PASTE AT THE BOTTOM OF APP.PY ---
+st.sidebar.divider()
+st.sidebar.subheader("📊 Data Check")
+if not df.empty:
+    # Shows count of students per class
+    st.sidebar.write(df['Class'].value_counts())
+else:
+    st.sidebar.warning("No data loaded")
