@@ -1,137 +1,68 @@
 import streamlit as st
 import pandas as pd
 import os
+import glob
 
 # --- CONFIGURATION ---
-ATTENDANCE_LOG_FILE = "attendance_log.csv"
-ADMIN_PASSWORD = "admin"
+DATA_FOLDER_NAME = "Data" 
 
-st.set_page_config(page_title="School Attendance", layout="wide")
+st.set_page_config(page_title="Attendance Debugger", layout="wide")
+st.title("🕵️‍♂️ Data Detective Mode")
 
-@st.cache_data
-def load_data_universal():
-    """Searches EVERY folder to find CSV files."""
-    found_files = []
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Walk through every folder in the repository
-    for current_root, dirs, files in os.walk(root_dir):
-        for file in files:
-            if file.endswith(".csv"):
-                if file == ATTENDANCE_LOG_FILE:
-                    continue
-                full_path = os.path.join(current_root, file)
-                found_files.append(full_path)
+# 1. FIND FILES
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Look in Data folder
+data_path = os.path.join(current_dir, DATA_FOLDER_NAME)
+files = glob.glob(os.path.join(data_path, "*.csv"))
 
-    if not found_files:
-        st.error("❌ No Student CSV files found.")
-        return pd.DataFrame()
-
-    df_list = []
-    for filepath in found_files:
-        try:
-            # FORCE ALL COLUMNS TO BE STRINGS (TEXT) TO AVOID ERRORS
-            temp_df = pd.read_csv(filepath, dtype=str)
-            temp_df.columns = [c.strip() for c in temp_df.columns]
-            df_list.append(temp_df)
-        except Exception as e:
-            st.warning(f"Skipped file: {os.path.basename(filepath)}")
-
-    if df_list:
-        final_df = pd.concat(df_list, ignore_index=True)
-        final_df = final_df.rename(columns={
-            'Class & Section': 'Class', 
-            'Mo.no': 'Phone',
-            'Mobile': 'Phone'
-        })
-        return final_df
-    
-    return pd.DataFrame()
-
-# --- APP LOGIC ---
-st.title("🏫 Attendance System")
-
-df = load_data_universal()
-
-if not df.empty:
-    if 'Class' not in df.columns:
-        st.error("❌ 'Class' column missing in CSV files.")
-    else:
-        menu = st.sidebar.radio("Login As", ["Teacher", "Admin"])
-
-        if menu == "Teacher":
-            st.subheader("👩‍🏫 Teacher View")
-            class_list = sorted(df['Class'].dropna().unique())
-            selected_class = st.selectbox("Select Class", class_list)
-
-            if selected_class:
-                st.write(f"Marking for: **{selected_class}**")
-                students = df[df['Class'] == selected_class].sort_values('Student Name')
-                
-                with st.form("attendance_form"):
-                    checkboxes = {}
-                    for idx, row in students.iterrows():
-                        c1, c2 = st.columns([3, 1])
-                        c1.write(f"**{row['Student Name']}**")
-                        # Create unique key
-                        checkboxes[idx] = c2.checkbox("Absent", key=f"{row['Phone']}_{idx}")
-                    
-                    if st.form_submit_button("Submit Attendance"):
-                        today = str(pd.Timestamp.now().date())
-                        
-                        # Get absent students
-                        absent_list = [students.loc[i] for i, c in checkboxes.items() if c]
-                        
-                        new_data = []
-                        if not absent_list:
-                            new_data.append([today, selected_class, "ALL PRESENT", ""])
-                        else:
-                            for s in absent_list:
-                                # CLEAN PHONE NUMBER: Force to string, remove decimals
-                                raw_phone = str(s['Phone'])
-                                clean_phone = raw_phone.replace('.0', '').replace('nan', '')
-                                new_data.append([today, selected_class, s['Student Name'], clean_phone])
-                        
-                        # Create dataframe and FORCE STRING TYPE
-                        new_df = pd.DataFrame(new_data, columns=['Date', 'Class', 'Name', 'Phone'])
-                        new_df = new_df.astype(str) # <--- THIS FIXES THE ERROR
-                        
-                        # Append to file
-                        if os.path.exists(ATTENDANCE_LOG_FILE):
-                            # Read old file as STRING to match new data
-                            old_df = pd.read_csv(ATTENDANCE_LOG_FILE, dtype=str)
-                            old_df = old_df[~((old_df['Date'] == today) & (old_df['Class'] == selected_class))]
-                            final_log = pd.concat([old_df, new_df], ignore_index=True)
-                        else:
-                            final_log = new_df
-                        
-                        final_log.to_csv(ATTENDANCE_LOG_FILE, index=False)
-                        st.success("✅ Saved Successfully!")
-
-        elif menu == "Admin":
-            st.header("Admin Dashboard")
-            pwd = st.sidebar.text_input("Password", type="password")
-            if pwd == ADMIN_PASSWORD:
-                if os.path.exists(ATTENDANCE_LOG_FILE):
-                    # Read as STRING to prevent errors
-                    log = pd.read_csv(ATTENDANCE_LOG_FILE, dtype=str)
-                    today = str(pd.Timestamp.now().date())
-                    today_recs = log[log['Date'] == today]
-                    
-                    st.dataframe(today_recs)
-                    
-                    absentees = today_recs[today_recs['Name'] != "ALL PRESENT"]
-                    if not absentees.empty:
-                        txt = "\n".join(absentees['Phone'].tolist())
-                        st.download_button("Download Absentees", txt, "absent.txt")
-                else:
-                    st.info("No records yet.")
-
-# --- PASTE AT THE BOTTOM OF APP.PY ---
-st.sidebar.divider()
-st.sidebar.subheader("📊 Data Check")
-if not df.empty:
-    # Shows count of students per class
-    st.sidebar.write(df['Class'].value_counts())
+st.write(f"### 📂 1. Files Found in '{DATA_FOLDER_NAME}' folder:")
+if not files:
+    st.error("No files found!")
 else:
-    st.sidebar.warning("No data loaded")
+    for f in files:
+        st.write(f"- `{os.path.basename(f)}`")
+
+st.divider()
+
+# 2. INSPECT CONTENT
+st.write("### 🔍 2. Inspecting File Contents:")
+
+all_data = []
+
+for filepath in files:
+    filename = os.path.basename(filepath)
+    try:
+        # Read file
+        df = pd.read_csv(filepath, dtype=str)
+        df.columns = [c.strip() for c in df.columns]
+        
+        # Find Class Column
+        class_col = None
+        if 'Class & Section' in df.columns:
+            class_col = 'Class & Section'
+        elif 'Class' in df.columns:
+            class_col = 'Class'
+            
+        if class_col:
+            # Check what classes are INSIDE this specific file
+            unique_classes = df[class_col].unique()
+            
+            st.write(f"**File:** `{filename}`")
+            st.info(f"👉 Contains Students for: **{unique_classes}**")
+            
+            # Warn if mixing happens
+            if len(unique_classes) > 1:
+                st.error(f"⚠️ WARNING: This file contains multiple classes! {unique_classes}")
+            
+            # Check if filename matches content
+            if "VII B" in filename and "VII-C" in unique_classes:
+                 st.error("🚨 MISMATCH: File is named 'VII B' but contains 'VII-C' data!")
+                 
+        else:
+            st.warning(f"File `{filename}` has no Class column.")
+            
+    except Exception as e:
+        st.error(f"Error reading {filename}: {e}")
+
+st.divider()
+st.success("Analysis Complete. If you see a 'mismatch' above, delete that file and re-upload the correct one.")
