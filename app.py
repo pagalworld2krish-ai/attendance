@@ -14,18 +14,31 @@ st.markdown("""
 .block-container {padding: 1rem 1rem 3rem 1rem;}
 
 button {
-    height: 55px !important;
+    height: 60px !important;
     font-size: 18px !important;
-    border-radius: 10px !important;
+    border-radius: 12px !important;
     width: 100% !important;
 }
 
+/* Mobile tap fix */
+button, .stButton>button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+button:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
 .stTextInput input {
-    height: 50px !important;
+    height: 55px !important;
     font-size: 18px !important;
 }
 
-.stCheckbox {transform: scale(1.2);}
+.stCheckbox {
+    transform: scale(1.3);
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,7 +81,6 @@ passwords = load_passwords()
 def load_data():
     files = glob.glob(os.path.join(DATA_FOLDER, "*.csv"))
     df_list = []
-
     for f in files:
         temp = pd.read_csv(f, dtype=str)
         temp.columns = [c.strip() for c in temp.columns]
@@ -82,7 +94,6 @@ def load_data():
         })
         df["Class"] = df["Class"].str.strip().str.upper().str.replace(" ", "-")
         return df
-
     return pd.DataFrame()
 
 # ---------- SAVE ----------
@@ -120,100 +131,128 @@ if "page" not in st.session_state:
 if st.session_state.page == "home":
     st.title("🏫 Attendance App")
 
-    col1, col2 = st.columns(2)
+    with st.form("home_form"):
+        col1, col2 = st.columns(2)
+        teacher_btn = col1.form_submit_button("👩‍🏫 Teacher")
+        admin_btn = col2.form_submit_button("👮 Admin")
 
-    if col1.button("👩‍🏫 Teacher"):
-        st.session_state.page = "teacher_login"
+        if teacher_btn:
+            st.session_state.page = "teacher_login"
 
-    if col2.button("👮 Admin"):
-        st.session_state.page = "admin_login"
+        if admin_btn:
+            st.session_state.page = "admin_login"
 
 # ---------- TEACHER LOGIN ----------
 elif st.session_state.page == "teacher_login":
 
     st.title("👩‍🏫 Teacher Login")
 
-    cls = st.selectbox("Class", list(TEACHERS.keys()))
-    pwd = st.text_input("Password", type="password")
+    with st.form("teacher_login_form"):
+        cls = st.selectbox("Class", list(TEACHERS.keys()))
+        pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
-        if passwords[cls] == pwd:
-            st.session_state.page = "teacher"
-            st.session_state.cls = cls
-        else:
-            st.error("Wrong Password")
+        login = st.form_submit_button("Login")
+        back = st.form_submit_button("Back")
 
-    if st.button("Back"):
-        st.session_state.page = "home"
+        if login:
+            if passwords[cls] == pwd:
+                st.session_state.page = "teacher"
+                st.session_state.cls = cls
+            else:
+                st.error("Wrong Password")
+
+        if back:
+            st.session_state.page = "home"
 
 # ---------- TEACHER PANEL ----------
 elif st.session_state.page == "teacher":
 
     cls = st.session_state.cls
-    st.title(TEACHERS[cls])
+    st.title(f"{TEACHERS[cls]}")
     st.write(f"📘 {cls}")
     st.write(f"📅 {date.today().strftime('%d/%m/%Y')}")
 
     data = df[df["Class"] == cls].sort_values("Student Name")
 
-    # FORM → single tap guaranteed
+    # Attendance Form
     with st.form("attendance_form"):
         checks = {}
 
         for i, row in data.iterrows():
             c1, c2 = st.columns([3,1])
             c1.markdown(f"**{row['Student Name']}**")
-
             key = f"{row['Student Name']}_{row['Phone']}"
             checks[i] = c2.checkbox("", key=key)
+            st.markdown("---")
 
         submit = st.form_submit_button("Submit Attendance")
 
         if submit:
             absent = [data.loc[i] for i,v in checks.items() if v]
             save_attendance(cls, absent)
+            st.session_state.submitted = True
             st.success("Attendance Saved")
 
-    # PASSWORD FORM
+    # Update Attendance
+    if st.session_state.get("submitted"):
+        with st.form("update_form"):
+            update = st.form_submit_button("🔄 Update Attendance")
+            if update:
+                st.session_state.submitted = False
+                st.rerun()
+
+    # Password
     st.divider()
 
-    with st.form("password_form"):
-        st.subheader("🔑 Change Password")
+    with st.form("password_toggle"):
+        show = st.form_submit_button("🔑 Update Password")
+        if show:
+            st.session_state.show_pass = True
 
-        new = st.text_input("New Password", type="password")
-        confirm = st.text_input("Confirm Password", type="password")
+    if st.session_state.get("show_pass"):
+        with st.form("password_form"):
+            new = st.text_input("New Password", type="password")
+            confirm = st.text_input("Confirm Password", type="password")
 
-        save = st.form_submit_button("Update Password")
+            save = st.form_submit_button("Save Password")
 
-        if save:
-            if new != confirm:
-                st.error("Passwords do not match")
-            elif new == "":
-                st.warning("Empty password not allowed")
-            else:
-                passwords[cls] = new
-                save_passwords(passwords)
-                st.success("Password Updated")
+            if save:
+                if new != confirm:
+                    st.error("Passwords do not match")
+                elif new == "":
+                    st.warning("Empty password not allowed")
+                else:
+                    passwords[cls] = new
+                    save_passwords(passwords)
+                    st.success("Password Updated")
+                    st.session_state.show_pass = False
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state.page = "home"
+    # Logout
+    with st.form("logout_form"):
+        logout = st.form_submit_button("Logout")
+        if logout:
+            st.session_state.clear()
+            st.session_state.page = "home"
 
 # ---------- ADMIN LOGIN ----------
 elif st.session_state.page == "admin_login":
 
     st.title("👮 Admin Login")
 
-    pwd = st.text_input("Password", type="password")
+    with st.form("admin_login_form"):
+        pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
-        if pwd == ADMIN_PASSWORD:
-            st.session_state.page = "admin"
-        else:
-            st.error("Wrong Password")
+        login = st.form_submit_button("Login")
+        back = st.form_submit_button("Back")
 
-    if st.button("Back"):
-        st.session_state.page = "home"
+        if login:
+            if pwd == ADMIN_PASSWORD:
+                st.session_state.page = "admin"
+            else:
+                st.error("Wrong Password")
+
+        if back:
+            st.session_state.page = "home"
 
 # ---------- ADMIN PANEL ----------
 elif st.session_state.page == "admin":
@@ -249,6 +288,8 @@ elif st.session_state.page == "admin":
 
             st.download_button("Download All Numbers", text)
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state.page = "home"
+    with st.form("admin_logout"):
+        logout = st.form_submit_button("Logout")
+        if logout:
+            st.session_state.clear()
+            st.session_state.page = "home"
