@@ -5,21 +5,31 @@ from datetime import date
 import glob
 import json
 
+# ---------- MOBILE UI SETTINGS ----------
+st.set_page_config(page_title="Attendance", layout="wide")
+
+# Hide sidebar + mobile styling
+st.markdown("""
+<style>
+[data-testid="stSidebar"] {display: none;}
+.block-container {padding: 1rem;}
+button {
+    height: 55px;
+    font-size: 18px !important;
+    border-radius: 10px;
+}
+.stTextInput>div>div>input {
+    height: 50px;
+    font-size: 18px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------- CONFIG ----------
 DATA_FOLDER = "data"
 ATTENDANCE_FILE = "attendance_log.csv"
 PASSWORD_FILE = "teacher_passwords.json"
 ADMIN_PASSWORD = "admin"
-
-st.set_page_config(page_title="Attendance", layout="wide")
-
-# ---------- MOBILE UI ----------
-st.markdown("""
-<style>
-[data-testid="stSidebar"] {display: none;}
-button {height:55px; font-size:18px;}
-</style>
-""", unsafe_allow_html=True)
 
 # ---------- TEACHERS ----------
 TEACHERS = {
@@ -36,7 +46,7 @@ TEACHERS = {
     "XII-C": "Mr.Ajay Shukla"
 }
 
-# ---------- PASSWORD ----------
+# ---------- PASSWORD SYSTEM ----------
 def load_passwords():
     if os.path.exists(PASSWORD_FILE):
         with open(PASSWORD_FILE, "r") as f:
@@ -93,112 +103,135 @@ def save_attendance(class_name, absent):
 
     final.to_csv(ATTENDANCE_FILE, index=False)
 
-# ---------- INIT ----------
+# ---------- LOAD ----------
 df = load_data()
 if df.empty:
-    st.error("No data found")
+    st.error("No student data found")
     st.stop()
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
 # ---------- HOME ----------
-if not st.session_state.logged_in:
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+
+# ---------- HOME SCREEN ----------
+if st.session_state.page == "home":
     st.title("🏫 Attendance App")
 
-    role = st.radio("Select Role", ["Teacher", "Admin"])
+    st.write("### Select Login Type")
 
-    if role == "Teacher":
-        cls = st.selectbox("Select Class", list(TEACHERS.keys()))
-        pwd = st.text_input("Password", type="password")
+    col1, col2 = st.columns(2)
 
-        if st.button("Login"):
-            if passwords[cls] == pwd:
-                st.session_state.logged_in = True
-                st.session_state.class_name = cls
-                st.rerun()
-            else:
-                st.error("Wrong Password")
+    if col1.button("👩‍🏫 Teacher Login"):
+        st.session_state.page = "teacher_login"
 
-    else:
-        pwd = st.text_input("Admin Password", type="password")
+    if col2.button("👮 Admin Login"):
+        st.session_state.page = "admin"
 
-        if st.button("Login"):
-            if pwd == ADMIN_PASSWORD:
-                st.session_state.admin = True
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.error("Wrong Password")
+# ---------- TEACHER LOGIN ----------
+elif st.session_state.page == "teacher_login":
 
-# ---------- TEACHER ----------
-elif "class_name" in st.session_state:
+    st.title("👩‍🏫 Teacher Login")
 
-    cls = st.session_state.class_name
-    teacher = TEACHERS[cls]
+    class_selected = st.selectbox("Select Class", list(TEACHERS.keys()))
+    password_input = st.text_input("Password", type="password")
 
-    st.title(f"👩‍🏫 {teacher}")
-    st.write(f"📘 {cls}")
-    st.write(f"📅 {date.today().strftime('%d/%m/%Y')}")
+    if st.button("Login"):
+        if passwords[class_selected] == password_input:
+            st.session_state.page = "teacher_panel"
+            st.session_state.class_name = class_selected
+        else:
+            st.error("Wrong Password")
 
-    class_data = df[df["Class"] == cls].sort_values("Student Name")
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
 
-    st.subheader("Mark Attendance")
+# ---------- TEACHER PANEL ----------
+elif st.session_state.page == "teacher_panel":
 
-    checks = {}
-    for i, row in class_data.iterrows():
-        col1, col2 = st.columns([3,1])
-        col1.write(row["Student Name"])
-        key = f"{row['Student Name']}_{row['Phone']}"
-        checks[i] = col2.checkbox("Absent", key=key)
+    class_name = st.session_state.class_name
+    teacher_name = TEACHERS[class_name]
 
-    if st.button("✅ Update Attendance"):
-        absent = [class_data.loc[i] for i,v in checks.items() if v]
-        save_attendance(cls, absent)
-        st.success("Attendance Updated")
+    st.title(f"👩‍🏫 {teacher_name}")
+    st.write(f"📘 Class: {class_name}")
+    st.write(f"📅 {date.today()}")
 
-    # ---------- PASSWORD ----------
+    st.info("✔ Tick absent students. You can resubmit anytime.")
+
+    class_data = df[df["Class"] == class_name].sort_values("Student Name")
+
+    with st.form("attendance"):
+        checks = {}
+
+        for i, row in class_data.iterrows():
+            col1, col2 = st.columns([3,1])
+            col1.write(row["Student Name"])
+            key = f"{row['Student Name']}_{row['Phone']}"
+            checks[i] = col2.checkbox("Absent", key=key)
+
+        if st.form_submit_button("✅ Submit Attendance"):
+            absent = [class_data.loc[i] for i,v in checks.items() if v]
+            save_attendance(class_name, absent)
+            st.success("Attendance Saved")
+
+    # Change password
     st.divider()
     st.subheader("🔑 Change Password")
 
     new_pass = st.text_input("New Password", type="password")
-    confirm_pass = st.text_input("Confirm Password", type="password")
 
     if st.button("Update Password"):
-        if new_pass != confirm_pass:
-            st.error("Passwords do not match")
-        elif new_pass == "":
-            st.warning("Password cannot be empty")
-        else:
-            passwords[cls] = new_pass
-            save_passwords(passwords)
-            st.success("Password Updated")
+        passwords[class_name] = new_pass
+        save_passwords(passwords)
+        st.success("Password Updated")
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.rerun()
+    if st.button("🚪 Logout"):
+        st.session_state.page = "home"
 
 # ---------- ADMIN ----------
-elif "admin" in st.session_state:
+elif st.session_state.page == "admin":
 
-    st.title("👮 Admin Dashboard")
+    st.title("👮 Admin Login")
 
-    if os.path.exists(ATTENDANCE_FILE):
-        log = pd.read_csv(ATTENDANCE_FILE)
+    password = st.text_input("Password", type="password")
 
-        selected_date = st.date_input("Select Date", value=date.today())
-        selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
+    if password == ADMIN_PASSWORD:
 
-        filtered = log[
-            (log["Date"] == str(selected_date)) &
-            (log["Class"] == selected_class)
-        ]
+        st.success("Login Successful")
 
-        if not filtered.empty:
-            st.dataframe(filtered)
-        else:
-            st.warning("No data")
+        if os.path.exists(ATTENDANCE_FILE):
+            log = pd.read_csv(ATTENDANCE_FILE)
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.rerun()
+            st.subheader("📊 View Attendance")
+
+            selected_date = st.date_input("Select Date", value=date.today())
+            selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
+
+            filtered = log[
+                (log["Date"] == str(selected_date)) &
+                (log["Class"] == selected_class)
+            ]
+
+            if not filtered.empty:
+                st.dataframe(filtered)
+            else:
+                st.warning("No data found")
+
+            st.divider()
+
+            st.subheader("📥 Download Absentees")
+
+            absentees = filtered[filtered["Name"] != "ALL PRESENT"]
+
+            if not absentees.empty:
+                phones = absentees["Phone"].astype(str).str.replace(r'\.0$', '', regex=True)
+                text = "\n".join(phones)
+
+                st.download_button("Download Numbers", text)
+            else:
+                st.info("No absentees")
+
+    elif password:
+        st.error("Wrong Password")
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
