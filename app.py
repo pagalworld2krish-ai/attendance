@@ -10,8 +10,59 @@ st.set_page_config(page_title="Attendance", layout="wide")
 
 st.markdown("""
 <style>
+
+/* Hide sidebar */
 [data-testid="stSidebar"] {display:none;}
-button {height:55px; font-size:18px;}
+
+/* Padding */
+.block-container {
+    padding: 1rem 1rem 3rem 1rem;
+}
+
+/* Buttons */
+button {
+    height: 60px !important;
+    font-size: 18px !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+}
+
+/* Inputs */
+.stTextInput input {
+    height: 55px !important;
+    font-size: 18px !important;
+}
+
+/* Select */
+.stSelectbox div {
+    font-size: 18px !important;
+}
+
+/* Checkbox bigger */
+.stCheckbox {
+    transform: scale(1.4);
+}
+
+/* Spacing */
+.row-widget {
+    margin-bottom: 10px;
+}
+
+/* Titles center */
+h1, h2, h3 {
+    text-align: center;
+}
+
+/* Divider spacing */
+section.main > div {
+    padding-bottom: 20px;
+}
+
+/* Table scroll */
+.stDataFrame {
+    overflow-x: auto;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -142,14 +193,13 @@ elif st.session_state.page == "teacher":
 
     data = df[df["Class"] == cls].sort_values("Student Name")
 
-    submitted = st.session_state.get("submitted", False)
-
     checks = {}
 
     for i, row in data.iterrows():
         c1, c2 = st.columns([3,1])
-        c1.write(row["Student Name"])
-        checks[i] = c2.checkbox("Absent", key=str(i))
+        c1.markdown(f"**{row['Student Name']}**")
+        checks[i] = c2.checkbox("", key=str(i))
+        st.markdown("---")
 
     if st.button("Submit Attendance"):
         absent = [data.loc[i] for i,v in checks.items() if v]
@@ -227,7 +277,6 @@ elif st.session_state.page == "admin":
         else:
             st.warning("No data")
 
-        # ---------- DOWNLOAD ALL ----------
         st.divider()
         st.subheader("📥 Download All Classes Numbers")
 
