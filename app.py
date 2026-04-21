@@ -10,59 +10,20 @@ st.set_page_config(page_title="Attendance", layout="wide")
 
 st.markdown("""
 <style>
-
-/* Hide sidebar */
 [data-testid="stSidebar"] {display:none;}
-
-/* Padding */
-.block-container {
-    padding: 1rem 1rem 3rem 1rem;
-}
-
-/* Buttons */
+.block-container {padding: 1rem 1rem 3rem 1rem;}
 button {
     height: 60px !important;
     font-size: 18px !important;
     border-radius: 12px !important;
     width: 100% !important;
 }
-
-/* Inputs */
 .stTextInput input {
     height: 55px !important;
     font-size: 18px !important;
 }
-
-/* Select */
-.stSelectbox div {
-    font-size: 18px !important;
-}
-
-/* Checkbox bigger */
-.stCheckbox {
-    transform: scale(1.4);
-}
-
-/* Spacing */
-.row-widget {
-    margin-bottom: 10px;
-}
-
-/* Titles center */
-h1, h2, h3 {
-    text-align: center;
-}
-
-/* Divider spacing */
-section.main > div {
-    padding-bottom: 20px;
-}
-
-/* Table scroll */
-.stDataFrame {
-    overflow-x: auto;
-}
-
+.stCheckbox {transform: scale(1.3);}
+button:focus {outline: none !important; box-shadow: none !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,7 +66,6 @@ passwords = load_passwords()
 def load_data():
     files = glob.glob(os.path.join(DATA_FOLDER, "*.csv"))
     df_list = []
-
     for f in files:
         temp = pd.read_csv(f, dtype=str)
         temp.columns = [c.strip() for c in temp.columns]
@@ -119,7 +79,6 @@ def load_data():
         })
         df["Class"] = df["Class"].str.strip().str.upper().str.replace(" ", "-")
         return df
-
     return pd.DataFrame()
 
 # ---------- SAVE ----------
@@ -159,10 +118,10 @@ if st.session_state.page == "home":
 
     c1, c2 = st.columns(2)
 
-    if c1.button("👩‍🏫 Teacher"):
+    if c1.button("👩‍🏫 Teacher", use_container_width=True):
         st.session_state.page = "teacher_login"
 
-    if c2.button("👮 Admin"):
+    if c2.button("👮 Admin", use_container_width=True):
         st.session_state.page = "admin_login"
 
 # ---------- TEACHER LOGIN ----------
@@ -173,14 +132,14 @@ elif st.session_state.page == "teacher_login":
     cls = st.selectbox("Class", list(TEACHERS.keys()))
     pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    if st.button("Login", use_container_width=True):
         if passwords[cls] == pwd:
             st.session_state.page = "teacher"
             st.session_state.cls = cls
         else:
             st.error("Wrong Password")
 
-    if st.button("Back"):
+    if st.button("Back", use_container_width=True):
         st.session_state.page = "home"
 
 # ---------- TEACHER PANEL ----------
@@ -193,29 +152,35 @@ elif st.session_state.page == "teacher":
 
     data = df[df["Class"] == cls].sort_values("Student Name")
 
-    checks = {}
+    with st.form("attendance_form"):
+        checks = {}
 
-    for i, row in data.iterrows():
-        c1, c2 = st.columns([3,1])
-        c1.markdown(f"**{row['Student Name']}**")
-        checks[i] = c2.checkbox("", key=str(i))
-        st.markdown("---")
+        for i, row in data.iterrows():
+            c1, c2 = st.columns([3,1])
+            c1.markdown(f"**{row['Student Name']}**")
 
-    if st.button("Submit Attendance"):
-        absent = [data.loc[i] for i,v in checks.items() if v]
-        save_attendance(cls, absent)
-        st.session_state.submitted = True
-        st.success("Saved")
+            unique_key = f"{row['Student Name']}_{row['Phone']}"
+            checks[i] = c2.checkbox("", key=unique_key)
+
+            st.markdown("---")
+
+        submit = st.form_submit_button("Submit Attendance")
+
+        if submit:
+            absent = [data.loc[i] for i,v in checks.items() if v]
+            save_attendance(cls, absent)
+            st.session_state.submitted = True
+            st.success("Attendance Saved")
 
     if st.session_state.get("submitted"):
-        if st.button("🔄 Update Attendance"):
+        if st.button("🔄 Update Attendance", use_container_width=True):
             st.session_state.submitted = False
             st.rerun()
 
     # ---------- PASSWORD ----------
     st.divider()
 
-    if st.button("🔑 Update Password"):
+    if st.button("🔑 Update Password", use_container_width=True):
         st.session_state.show_pass = True
 
     if st.session_state.get("show_pass"):
@@ -223,7 +188,7 @@ elif st.session_state.page == "teacher":
         new = st.text_input("New Password", type="password")
         confirm = st.text_input("Confirm Password", type="password")
 
-        if st.button("Save Password"):
+        if st.button("Save Password", use_container_width=True):
             if new != confirm:
                 st.error("Passwords do not match")
             elif new == "":
@@ -231,10 +196,10 @@ elif st.session_state.page == "teacher":
             else:
                 passwords[cls] = new
                 save_passwords(passwords)
-                st.success("Updated")
+                st.success("Password Updated")
                 st.session_state.show_pass = False
 
-    if st.button("Logout"):
+    if st.button("Logout", use_container_width=True):
         st.session_state.clear()
         st.session_state.page = "home"
 
@@ -245,13 +210,13 @@ elif st.session_state.page == "admin_login":
 
     pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    if st.button("Login", use_container_width=True):
         if pwd == ADMIN_PASSWORD:
             st.session_state.page = "admin"
         else:
             st.error("Wrong Password")
 
-    if st.button("Back"):
+    if st.button("Back", use_container_width=True):
         st.session_state.page = "home"
 
 # ---------- ADMIN PANEL ----------
@@ -289,6 +254,6 @@ elif st.session_state.page == "admin":
 
             st.download_button("Download All Numbers", text)
 
-    if st.button("Logout"):
+    if st.button("Logout", use_container_width=True):
         st.session_state.clear()
         st.session_state.page = "home"
