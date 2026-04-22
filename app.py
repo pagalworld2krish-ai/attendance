@@ -65,7 +65,7 @@ def load_data():
 
 # ---------- SAVE ----------
 def save_attendance(class_name, absent):
-    today = str(date.today())
+    today = str(date.today())  # keep storage format same
     records = []
 
     if not absent:
@@ -129,6 +129,26 @@ if menu == "Teacher":
                     save_attendance(cls, absent)
                     st.success("Attendance saved")
 
+            st.divider()
+
+            with st.form("password_form"):
+                st.subheader("Change Password")
+
+                new = st.text_input("New Password", type="password")
+                confirm = st.text_input("Confirm Password", type="password")
+
+                save = st.form_submit_button("Update Password")
+
+                if save:
+                    if new != confirm:
+                        st.error("Passwords do not match")
+                    elif new == "":
+                        st.warning("Password cannot be empty")
+                    else:
+                        passwords[cls] = new
+                        save_passwords(passwords)
+                        st.success("Password updated")
+
 # ---------- ADMIN ----------
 elif menu == "Admin":
 
@@ -142,40 +162,38 @@ elif menu == "Admin":
         else:
             st.success("Admin Login Successful")
 
-            log = pd.read_csv(ATTENDANCE_FILE)
+            if os.path.exists(ATTENDANCE_FILE):
+                log = pd.read_csv(ATTENDANCE_FILE)
 
-            # 🔥 CUSTOM DATE PICKER
-            col1, col2, col3 = st.columns(3)
+                selected_date = st.date_input("Select Date", value=date.today())
+                selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
 
-            day = col1.selectbox("Day", list(range(1,32)))
-            month = col2.selectbox("Month", list(range(1,13)))
-            year = col3.selectbox("Year", list(range(2024,2031)))
+                # ✅ FIXED DATE FORMAT
+                st.write(f"📅 {selected_date.strftime('%d/%m/%Y')}")
 
-            selected_date_str = f"{year}-{month:02d}-{day:02d}"
+                # ✅ FIXED FILTER
+                selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-            st.markdown(f"### 📅 Selected Date: {day:02d}/{month:02d}/{year}")
+                filtered = log[
+                    (log["Date"] == selected_date_str) &
+                    (log["Class"] == selected_class)
+                ]
 
-            selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
+                if not filtered.empty:
+                    st.dataframe(filtered)
+                else:
+                    st.warning("No data found")
 
-            filtered = log[
-                (log["Date"] == selected_date_str) &
-                (log["Class"] == selected_class)
-            ]
+                st.divider()
 
-            if not filtered.empty:
-                st.dataframe(filtered)
-            else:
-                st.warning("No data found")
+                # ✅ FIXED DOWNLOAD
+                today_all = log[log["Date"] == selected_date_str]
+                abs_all = today_all[today_all["Name"] != "ALL PRESENT"]
 
-            st.divider()
+                if not abs_all.empty:
+                    phones = abs_all["Phone"].dropna().astype(str)
+                    phones = phones.str.replace(r'\.0$', '', regex=True)
 
-            today_all = log[log["Date"] == selected_date_str]
-            abs_all = today_all[today_all["Name"] != "ALL PRESENT"]
+                    text = "\n".join(phones.tolist())
 
-            if not abs_all.empty:
-                phones = abs_all["Phone"].dropna().astype(str)
-                phones = phones.str.replace(r'\.0$', '', regex=True)
-
-                text = "\n".join(phones.tolist())
-
-                st.download_button("Download All Numbers", text)
+                    st.download_button("Download All Numbers", text)
