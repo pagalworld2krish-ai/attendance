@@ -65,7 +65,7 @@ def load_data():
 
 # ---------- SAVE ----------
 def save_attendance(class_name, absent):
-    today = str(date.today())  # keep storage format same
+    today = str(date.today())  # Keep storage format as YYYY-MM-DD
     records = []
 
     if not absent:
@@ -165,13 +165,13 @@ elif menu == "Admin":
             if os.path.exists(ATTENDANCE_FILE):
                 log = pd.read_csv(ATTENDANCE_FILE)
 
-              selected_date = st.date_input("Select Date", value=date.today())
-selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
+                selected_date = st.date_input("Select Date", value=date.today())
+                selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
 
-# Show formatted date clearly
-st.markdown(f"### 📅 Selected Date: {selected_date.strftime('%d/%m/%Y')}")
+                # ✅ Show formatted date clearly
+                st.markdown(f"### 📅 Selected Date: {selected_date.strftime('%d/%m/%Y')}")
 
-                # ✅ FIXED FILTER
+                # ✅ Correct filtering format
                 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
                 filtered = log[
@@ -186,7 +186,7 @@ st.markdown(f"### 📅 Selected Date: {selected_date.strftime('%d/%m/%Y')}")
 
                 st.divider()
 
-                # ✅ FIXED DOWNLOAD
+                # ✅ Download numbers fix
                 today_all = log[log["Date"] == selected_date_str]
                 abs_all = today_all[today_all["Name"] != "ALL PRESENT"]
 
@@ -197,3 +197,5 @@ st.markdown(f"### 📅 Selected Date: {selected_date.strftime('%d/%m/%Y')}")
                     text = "\n".join(phones.tolist())
 
                     st.download_button("Download All Numbers", text)
+                else:
+                    st.info("No absentees found")
