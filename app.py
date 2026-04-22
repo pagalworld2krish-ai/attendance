@@ -65,7 +65,7 @@ def load_data():
 
 # ---------- SAVE ----------
 def save_attendance(class_name, absent):
-    today = str(date.today())
+    today = str(date.today())  # keep storage format same
     records = []
 
     if not absent:
@@ -91,7 +91,7 @@ if df.empty:
     st.error("No student data found")
     st.stop()
 
-# ---------- MENU (THIS FIXES EVERYTHING) ----------
+# ---------- MENU ----------
 menu = st.radio("Select Role", ["Teacher", "Admin"])
 
 # ---------- TEACHER ----------
@@ -112,7 +112,6 @@ if menu == "Teacher":
 
             data = df[df["Class"] == cls].sort_values("Student Name")
 
-            # Attendance form (single tap guaranteed)
             with st.form("attendance_form"):
                 checks = {}
 
@@ -132,7 +131,6 @@ if menu == "Teacher":
 
             st.divider()
 
-            # Password form
             with st.form("password_form"):
                 st.subheader("Change Password")
 
@@ -170,10 +168,14 @@ elif menu == "Admin":
                 selected_date = st.date_input("Select Date", value=date.today())
                 selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
 
+                # ✅ FIXED DATE FORMAT
                 st.write(f"📅 {selected_date.strftime('%d/%m/%Y')}")
 
+                # ✅ FIXED FILTER
+                selected_date_str = selected_date.strftime("%Y-%m-%d")
+
                 filtered = log[
-                    (log["Date"] == str(selected_date)) &
+                    (log["Date"] == selected_date_str) &
                     (log["Class"] == selected_class)
                 ]
 
@@ -184,7 +186,8 @@ elif menu == "Admin":
 
                 st.divider()
 
-                today_all = log[log["Date"] == str(selected_date)]
+                # ✅ FIXED DOWNLOAD
+                today_all = log[log["Date"] == selected_date_str]
                 abs_all = today_all[today_all["Name"] != "ALL PRESENT"]
 
                 if not abs_all.empty:
