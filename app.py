@@ -165,11 +165,11 @@ elif menu == "Admin":
             if os.path.exists(ATTENDANCE_FILE):
                 log = pd.read_csv(ATTENDANCE_FILE)
 
-                selected_date = st.date_input("Select Date", value=date.today())
-                selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
+              selected_date = st.date_input("Select Date", value=date.today())
+selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
 
-                # ✅ FIXED DATE FORMAT
-                st.write(f"📅 {selected_date.strftime('%d/%m/%Y')}")
+# Show formatted date clearly
+st.markdown(f"### 📅 Selected Date: {selected_date.strftime('%d/%m/%Y')}")
 
                 # ✅ FIXED FILTER
                 selected_date_str = selected_date.strftime("%Y-%m-%d")
