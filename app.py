@@ -85,150 +85,112 @@ def save_attendance(class_name, absent):
 
     final.to_csv(ATTENDANCE_FILE, index=False)
 
-# ---------- INIT ----------
+# ---------- LOAD ----------
 df = load_data()
 if df.empty:
     st.error("No student data found")
     st.stop()
 
-if "page" not in st.session_state:
-    st.session_state.page = "home"
+# ---------- MENU (THIS FIXES EVERYTHING) ----------
+menu = st.radio("Select Role", ["Teacher", "Admin"])
 
-# ---------- HOME ----------
-if st.session_state.page == "home":
-    st.title("🏫 Attendance System")
+# ---------- TEACHER ----------
+if menu == "Teacher":
 
-    if st.button("👩‍🏫 Teacher Login"):
-        st.session_state.page = "teacher_login"
-
-    if st.button("👮 Admin Login"):
-        st.session_state.page = "admin_login"
-
-# ---------- TEACHER LOGIN ----------
-elif st.session_state.page == "teacher_login":
-
-    st.title("👩‍🏫 Teacher Login")
+    st.title("👩‍🏫 Teacher Panel")
 
     cls = st.selectbox("Select Class", list(TEACHERS.keys()))
     pwd = st.text_input("Password", type="password")
 
-    if st.button("Login"):
-        if passwords[cls] == pwd:
-            st.session_state.page = "teacher"
-            st.session_state.cls = cls
-        else:
+    if pwd:
+        if passwords[cls] != pwd:
             st.error("Wrong Password")
-
-    if st.button("⬅ Back"):
-        st.session_state.page = "home"
-
-# ---------- TEACHER PANEL ----------
-elif st.session_state.page == "teacher":
-
-    cls = st.session_state.cls
-
-    st.title(f"{TEACHERS[cls]}")
-    st.write(f"Class: {cls}")
-    st.write(f"Date: {date.today().strftime('%d/%m/%Y')}")
-
-    data = df[df["Class"] == cls].sort_values("Student Name")
-
-    # Attendance Form
-    with st.form("attendance_form"):
-        checks = {}
-
-        for i, row in data.iterrows():
-            col1, col2 = st.columns([4,1])
-            col1.write(row["Student Name"])
-
-            key = f"{row['Student Name']}_{row['Phone']}"
-            checks[i] = col2.checkbox("Absent", key=key)
-
-        submit = st.form_submit_button("Submit Attendance")
-
-        if submit:
-            absent = [data.loc[i] for i,v in checks.items() if v]
-            save_attendance(cls, absent)
-            st.success("Attendance saved successfully")
-
-    st.divider()
-
-    # Password Form
-    with st.form("password_form"):
-        st.subheader("Change Password")
-
-        new = st.text_input("New Password", type="password")
-        confirm = st.text_input("Confirm Password", type="password")
-
-        save = st.form_submit_button("Update Password")
-
-        if save:
-            if new != confirm:
-                st.error("Passwords do not match")
-            elif new == "":
-                st.warning("Password cannot be empty")
-            else:
-                passwords[cls] = new
-                save_passwords(passwords)
-                st.success("Password updated successfully")
-
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state.page = "home"
-
-# ---------- ADMIN LOGIN ----------
-elif st.session_state.page == "admin_login":
-
-    st.title("👮 Admin Login")
-
-    pwd = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if pwd == ADMIN_PASSWORD:
-            st.session_state.page = "admin"
         else:
+            st.success(f"Welcome {TEACHERS[cls]}")
+            st.write(f"📘 Class: {cls}")
+            st.write(f"📅 Date: {date.today().strftime('%d/%m/%Y')}")
+
+            data = df[df["Class"] == cls].sort_values("Student Name")
+
+            # Attendance form (single tap guaranteed)
+            with st.form("attendance_form"):
+                checks = {}
+
+                for i, row in data.iterrows():
+                    col1, col2 = st.columns([4,1])
+                    col1.write(row["Student Name"])
+
+                    key = f"{row['Student Name']}_{row['Phone']}"
+                    checks[i] = col2.checkbox("Absent", key=key)
+
+                submit = st.form_submit_button("Submit Attendance")
+
+                if submit:
+                    absent = [data.loc[i] for i,v in checks.items() if v]
+                    save_attendance(cls, absent)
+                    st.success("Attendance saved")
+
+            st.divider()
+
+            # Password form
+            with st.form("password_form"):
+                st.subheader("Change Password")
+
+                new = st.text_input("New Password", type="password")
+                confirm = st.text_input("Confirm Password", type="password")
+
+                save = st.form_submit_button("Update Password")
+
+                if save:
+                    if new != confirm:
+                        st.error("Passwords do not match")
+                    elif new == "":
+                        st.warning("Password cannot be empty")
+                    else:
+                        passwords[cls] = new
+                        save_passwords(passwords)
+                        st.success("Password updated")
+
+# ---------- ADMIN ----------
+elif menu == "Admin":
+
+    st.title("👮 Admin Panel")
+
+    pwd = st.text_input("Admin Password", type="password")
+
+    if pwd:
+        if pwd != ADMIN_PASSWORD:
             st.error("Wrong Password")
-
-    if st.button("⬅ Back"):
-        st.session_state.page = "home"
-
-# ---------- ADMIN PANEL ----------
-elif st.session_state.page == "admin":
-
-    st.title("👮 Admin Dashboard")
-
-    if os.path.exists(ATTENDANCE_FILE):
-        log = pd.read_csv(ATTENDANCE_FILE)
-
-        selected_date = st.date_input("Select Date", value=date.today())
-        selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
-
-        st.write(f"Date: {selected_date.strftime('%d/%m/%Y')}")
-
-        filtered = log[
-            (log["Date"] == str(selected_date)) &
-            (log["Class"] == selected_class)
-        ]
-
-        if not filtered.empty:
-            st.dataframe(filtered)
         else:
-            st.warning("No data found")
+            st.success("Admin Login Successful")
 
-        st.divider()
+            if os.path.exists(ATTENDANCE_FILE):
+                log = pd.read_csv(ATTENDANCE_FILE)
 
-        # Download
-        today_all = log[log["Date"] == str(selected_date)]
-        abs_all = today_all[today_all["Name"] != "ALL PRESENT"]
+                selected_date = st.date_input("Select Date", value=date.today())
+                selected_class = st.selectbox("Select Class", sorted(df["Class"].unique()))
 
-        if not abs_all.empty:
-            phones = abs_all["Phone"].dropna().astype(str)
-            phones = phones.str.replace(r'\.0$', '', regex=True)
+                st.write(f"📅 {selected_date.strftime('%d/%m/%Y')}")
 
-            text = "\n".join(phones.tolist())
+                filtered = log[
+                    (log["Date"] == str(selected_date)) &
+                    (log["Class"] == selected_class)
+                ]
 
-            st.download_button("Download All Numbers", text)
+                if not filtered.empty:
+                    st.dataframe(filtered)
+                else:
+                    st.warning("No data found")
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state.page = "home"
+                st.divider()
+
+                today_all = log[log["Date"] == str(selected_date)]
+                abs_all = today_all[today_all["Name"] != "ALL PRESENT"]
+
+                if not abs_all.empty:
+                    phones = abs_all["Phone"].dropna().astype(str)
+                    phones = phones.str.replace(r'\.0$', '', regex=True)
+
+                    text = "\n".join(phones.tolist())
+
+                    st.download_button("Download All Numbers", text)
